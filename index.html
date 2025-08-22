@@ -127,11 +127,30 @@
     .hidden {
       display: none;
     }
+
+    .loading {
+      text-align: center;
+      padding: 20px;
+      font-size: 18px;
+    }
+
+    .home-btn {
+      position: absolute;
+      left: 15px;
+      top: 15px;
+      padding: 5px 10px;
+      background: white;
+      color: #2d89ef;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
   <header>
     <h1>📖 Web Đọc Truyện</h1>
+    <button class="home-btn" onclick="goHome()">Trang chủ</button>
   </header>
 
   <main id="main-content">
@@ -255,12 +274,64 @@
       document.getElementById('chap-select').value = chapNumber;
       document.getElementById('chapter-title').textContent = `${currentTruyen.ten} - Chương ${chapNumber}`;
       
-      // Kiểm tra số trang trong chap (giả định mỗi chap có 20 trang)
-      // Trong thực tế, bạn có thể lấy thông tin này từ server hoặc cấu hình
-      totalPages = 20; // Giả định mỗi chap có 20 trang
+      // Hiển thị trạng thái loading
+      const mangaPages = document.getElementById('manga-pages');
+      mangaPages.innerHTML = '<div class="loading">Đang tải...</div>';
       
-      // Load trang đầu tiên
-      loadPage(currentPage);
+      // Kiểm tra số trang trong chap
+      detectTotalPages(chapNumber);
+    }
+
+    // Phát hiện số trang trong chap
+    function detectTotalPages(chapNumber) {
+      // Thử tải ảnh đầu tiên để kiểm tra chap có tồn tại không
+      const testImage = new Image();
+      testImage.onload = function() {
+        // Nếu ảnh đầu tiên tồn tại, tiếp tục kiểm tra số trang
+        checkPageExists(chapNumber, 1, 1);
+      };
+      testImage.onerror = function() {
+        // Nếu chap không tồn tại, thử chap trước đó
+        if (chapNumber > 1) {
+          loadChap(chapNumber - 1);
+        } else {
+          // Nếu không có chap nào tồn tại
+          const mangaPages = document.getElementById('manga-pages');
+          mangaPages.innerHTML = '<div class="loading">Không tìm thấy chap nào</div>';
+          totalPages = 0;
+          updatePageControls();
+        }
+      };
+      // Định dạng tên file mới: Manhwa1/Chap1/Chap1\1.jpg
+      testImage.src = `${currentTruyen.folder}/Chap${chapNumber}/Chap${chapNumber}\\1.jpg`;
+    }
+
+    // Kiểm tra trang có tồn tại không
+    function checkPageExists(chapNumber, pageNumber, foundPages) {
+      const testImage = new Image();
+      testImage.onload = function() {
+        // Nếu trang tồn tại, kiểm tra trang tiếp theo
+        checkPageExists(chapNumber, pageNumber + 1, foundPages + 1);
+      };
+      testImage.onerror = function() {
+        // Nếu trang không tồn tại, đây là trang cuối cùng
+        totalPages = foundPages;
+        updatePageControls();
+        loadPage(currentPage);
+      };
+      // Định dạng tên file mới: Manhwa1/Chap1/Chap1\1.jpg
+      testImage.src = `${currentTruyen.folder}/Chap${chapNumber}/Chap${chapNumber}\\${pageNumber}.jpg`;
+    }
+
+    // Cập nhật điều khiển trang
+    function updatePageControls() {
+      document.getElementById('page-indicator').textContent = `Trang ${currentPage}/${totalPages}`;
+      
+      // Ẩn/hiện nút điều hướng
+      document.getElementById('prev-page').disabled = (currentPage <= 1);
+      document.getElementById('next-page').disabled = (currentPage >= totalPages);
+      document.getElementById('prev-chap').disabled = (currentChap <= 1);
+      document.getElementById('next-chap').disabled = (currentChap >= currentTruyen.soChap);
     }
 
     // Load trang cụ thể
@@ -270,14 +341,15 @@
       currentPage = pageNumber;
       
       // Cập nhật indicator
-      document.getElementById('page-indicator').textContent = `Trang ${pageNumber}/${totalPages}`;
+      updatePageControls();
       
       // Hiển thị ảnh
       const mangaPages = document.getElementById('manga-pages');
       mangaPages.innerHTML = '';
       
       const img = document.createElement('img');
-      img.src = `${currentTruyen.folder}/Chap${currentChap}/${pageNumber}.jpg`;
+      // Định dạng tên file mới: Manhwa1/Chap1/Chap1\1.jpg
+      img.src = `${currentTruyen.folder}/Chap${currentChap}/Chap${currentChap}\\${pageNumber}.jpg`;
       img.alt = `Trang ${pageNumber}`;
       img.onerror = function() {
         this.src = 'https://via.placeholder.com/800x1200?text=Không+tìm+thấy+trang';
@@ -315,7 +387,12 @@
       } else if (currentChap > 1) {
         // Nếu đang ở trang đầu, chuyển đến chap trước
         goToPrevChap();
-        loadPage(totalPages); // Load trang cuối của chap trước
+        // Đặt timeout để đợi load chap mới xong rồi mới load trang cuối
+        setTimeout(() => {
+          if (totalPages > 0) {
+            loadPage(totalPages);
+          }
+        }, 300);
       }
     }
 
@@ -325,26 +402,8 @@
       } else if (currentTruyen && currentChap < currentTruyen.soChap) {
         // Nếu đang ở trang cuối, chuyển đến chap sau
         goToNextChap();
-        loadPage(1); // Load trang đầu của chap sau
       }
     }
-
-    // Thêm nút quay lại trang chủ
-    const header = document.querySelector('header');
-    const homeButton = document.createElement('button');
-    homeButton.textContent = 'Trang chủ';
-    homeButton.style.position = 'absolute';
-    homeButton.style.left = '15px';
-    homeButton.style.top = '15px';
-    homeButton.style.padding = '5px 10px';
-    homeButton.style.background = 'white';
-    homeButton.style.color = '#2d89ef';
-    homeButton.style.border = 'none';
-    homeButton.style.borderRadius = '3px';
-    homeButton.style.cursor = 'pointer';
-    homeButton.addEventListener('click', goHome);
-    header.style.position = 'relative';
-    header.appendChild(homeButton);
   </script>
 </body>
 </html>
